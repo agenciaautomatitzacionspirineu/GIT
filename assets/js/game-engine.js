@@ -31,6 +31,8 @@ class GameEngine {
       caps: this.baseCaps(),
       buildings: { hearth: 1, gatherers: 1 },
       technologies: [],
+      health: { sick: 0, lastChange: 0 },
+      hotel: { attraction: 0, visitors: 0, visitorCap: 0, exchange: 0 },
       queue: [],
       activeEvent: null,
       eventCooldown: 30,
@@ -93,8 +95,15 @@ class GameEngine {
     }
     this.state.buildings ||= {};
     this.state.technologies ||= [];
+    this.state.health ||= { sick: 0, lastChange: 0 };
+    this.state.hotel ||= { attraction: 0, visitors: 0, visitorCap: 0, exchange: 0 };
     this.state.queue ||= [];
+    this.state.queue.forEach((item) => {
+      item.groupKey ||= `${item.type}:${item.target}`;
+      item.status ||= "waiting";
+    });
     this.recalculateDerivedCaps();
+    this.updateHotelStats(0);
   }
 
   start() {
@@ -143,6 +152,8 @@ class GameEngine {
 
     this.advanceQueue(elapsed);
     this.produce(elapsed);
+    this.updateHotelStats(elapsed);
+    this.checkHealth(elapsed);
     this.advanceEvent(elapsed);
     this.checkPopulation(elapsed);
     this.checkEraProgress();
@@ -158,11 +169,29 @@ class GameEngine {
   }
 
   usedWorkers() {
-    return this.state.queue.reduce((sum, item) => sum + item.workers, 0);
+    return this.activeQueueItems().reduce((sum, item) => sum + item.workers, 0);
+  }
+
+  healthyWorkers() {
+    return Math.max(0, this.state.population - Math.ceil(this.state.health?.sick || 0));
   }
 
   freeWorkers() {
-    return Math.max(0, this.state.population - this.usedWorkers());
+    return Math.max(0, this.healthyWorkers() - this.usedWorkers());
+  }
+
+  activeQueueItems() {
+    const activeByGroup = new Map();
+    for (const item of this.state.queue) {
+      const groupKey = item.groupKey || `${item.type}:${item.target}`;
+      if (!activeByGroup.has(groupKey)) activeByGroup.set(groupKey, item);
+    }
+    return [...activeByGroup.values()];
+  }
+
+  hasQueuedGroup(type, target) {
+    const groupKey = `${type}:${target}`;
+    return this.state.queue.some((item) => (item.groupKey || `${item.type}:${item.target}`) === groupKey);
   }
 
   productionRates() {
@@ -205,6 +234,10 @@ class GameEngine {
     const foodUseMultiplier = this.buildingEffect("foodUseMultiplier");
     const foodConsumption = this.state.population * 0.017 * this.state.difficultyRules.consumption * (1 + foodUseMultiplier);
     rates.food -= foodConsumption;
+    const hotelExchange = this.state.hotel.exchange || 0;
+    rates.knowledge += hotelExchange * 0.45;
+    rates.fiber += hotelExchange * 0.25;
+    rates.food += hotelExchange * 0.12;
 
     for (const [resource, rate] of Object.entries(rates)) {
       this.addResource(resource, rate * seconds);
@@ -262,12 +295,15 @@ class GameEngine {
     const level = this.projectedBuildingLevel(buildingId);
     if (!building || level >= building.maxLevel || !this.hasRequirements(building.requires)) return false;
     const cost = this.scaledCost(building.cost, level);
-    if (!this.canAfford(cost) || this.freeWorkers() < building.workers) return false;
+    const samePlaceQueued = this.hasQueuedGroup("building", buildingId);
+    if (!this.canAfford(cost) || (!samePlaceQueued && this.freeWorkers() < building.workers)) return false;
     this.pay(cost);
     this.state.queue.push({
       id: `build-${buildingId}-${Date.now()}`,
       type: "building",
       target: buildingId,
+      groupKey: `building:${buildingId}`,
+      status: "waiting",
       label: `${building.label} ${level + 1}`,
       workers: building.workers,
       remaining: building.baseTime * Math.pow(1.18, level),
@@ -287,6 +323,8 @@ class GameEngine {
       id: `tech-${technologyId}-${Date.now()}`,
       type: "technology",
       target: technologyId,
+      groupKey: `technology:${technologyId}`,
+      status: "waiting",
       label: technology.label,
       workers: technology.workers,
       remaining: technology.time,
@@ -299,14 +337,17 @@ class GameEngine {
 
   developTile(tileId) {
     const tile = this.state.map.find((item) => item.id === tileId);
-    if (!tile) return false;
+    if (!tile || tile.special) return false;
     const cost = { food: 35 + tile.development * 20, wood: 30 + tile.development * 25, stone: 15 + tile.development * 15 };
-    if (!this.canAfford(cost) || this.freeWorkers() < 2) return false;
+    const sameTileQueued = this.hasQueuedGroup("tile", tileId);
+    if (!this.canAfford(cost) || (!sameTileQueued && this.freeWorkers() < 2)) return false;
     this.pay(cost);
     this.state.queue.push({
       id: `tile-${tileId}-${Date.now()}`,
       type: "tile",
       target: tileId,
+      groupKey: `tile:${tileId}`,
+      status: "waiting",
       label: `Millora casella ${tileId + 1}`,
       workers: 2,
       remaining: 38 + tile.development * 18,
@@ -318,7 +359,11 @@ class GameEngine {
   }
 
   advanceQueue(seconds) {
-    for (const item of [...this.state.queue]) {
+    const activeItems = this.activeQueueItems();
+    this.state.queue.forEach((item) => {
+      item.status = activeItems.includes(item) ? "active" : "waiting";
+    });
+    for (const item of activeItems) {
       item.remaining -= seconds;
       if (item.remaining <= 0) {
         this.completeQueueItem(item);
@@ -388,6 +433,60 @@ class GameEngine {
       if (event.safetyHit) this.addResource("safety", -Math.max(0, event.safetyHit - this.state.resources.safety * 0.08));
       this.state.log = `Esdeveniment: ${event.label}.`;
     }
+  }
+
+  occupiedTileCount() {
+    return this.state.map.filter((tile) => {
+      if (tile.special?.buildingId) return (this.state.buildings[tile.special.buildingId] || 0) > 0;
+      if (tile.special?.label) return true;
+      return (tile.development || 0) > 0;
+    }).length;
+  }
+
+  resourceFullness() {
+    const keys = ["food", "wood", "stone", "fiber", "knowledge", "safety"];
+    const total = keys.reduce((sum, key) => {
+      const cap = this.state.caps[key] || 1;
+      return sum + Math.min(1, (this.state.resources[key] || 0) / cap);
+    }, 0);
+    return total / keys.length;
+  }
+
+  updateHotelStats(seconds) {
+    const hotelLevel = this.state.buildings.hotel || 0;
+    const rules = this.data.configuration?.hotel || {};
+    const attraction = Math.round(
+      hotelLevel * (rules.levelWeight || 18) +
+      this.occupiedTileCount() * (rules.occupiedTileWeight || 2) +
+      this.resourceFullness() * (rules.resourceWeight || 35) +
+      this.state.population * (rules.populationWeight || 0.8) +
+      this.state.morale * (rules.moraleWeight || 0.25)
+    );
+    const visitorCap = hotelLevel * (this.data.buildings.hotel?.effects?.visitorCap || 8);
+    const targetVisitors = hotelLevel > 0 ? Math.min(visitorCap, attraction / 6) : 0;
+    const drift = Math.min(1, seconds * (rules.visitorDrift || 0.015));
+    const visitors = this.state.hotel.visitors + (targetVisitors - this.state.hotel.visitors) * drift;
+    const exchange = visitors * (this.data.buildings.hotel?.effects?.exchangeRate || 0.018) * (1 + hotelLevel * 0.12);
+    this.state.hotel = { attraction, visitorCap, visitors: Math.max(0, visitors), exchange };
+  }
+
+  checkHealth(seconds) {
+    const hospitalLevel = this.state.buildings.hospital || 0;
+    const lowFoodThreshold = this.data.configuration?.population?.lowFoodThreshold || 0.18;
+    const foodRatio = (this.state.resources.food || 0) / Math.max(1, this.state.caps.food || 1);
+    const starvationPressure = Math.max(0, lowFoodThreshold - foodRatio) / lowFoodThreshold;
+    const moralePressure = Math.max(0, 55 - this.state.morale) / 55;
+    const eventPressure = this.state.activeEvent?.kind === "penalty" ? 0.2 : 0;
+    const resistance = Math.min(0.78, hospitalLevel * (this.data.buildings.hospital?.effects?.sicknessResistance || 0.08));
+    const sicknessRate = (0.0012 + starvationPressure * 0.01 + moralePressure * 0.003 + eventPressure * 0.002) * (1 - resistance);
+    const recoveryRate = 0.002 + hospitalLevel * (this.data.buildings.hospital?.effects?.recoveryRate || 0.018);
+    const sick = this.state.health.sick || 0;
+    const newSick = Math.max(0, this.state.population - sick) * sicknessRate * seconds;
+    const recovered = sick * recoveryRate * seconds;
+    const nextSick = Math.max(0, Math.min(this.state.population, sick + newSick - recovered));
+    if (Math.floor(nextSick) > Math.floor(sick)) this.state.log = "Algunes persones han emmalaltit i hi ha menys treballadors disponibles.";
+    if (Math.floor(nextSick) < Math.floor(sick)) this.state.log = "Part de la poblacio malalta s'ha recuperat.";
+    this.state.health.sick = nextSick;
   }
 
   checkPopulation(seconds) {

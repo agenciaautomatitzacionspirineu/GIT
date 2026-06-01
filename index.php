@@ -64,6 +64,8 @@ $settings = require __DIR__ . '/config/game.php';
                 <div id="mapGrid" class="map-grid" aria-label="Mapa 8 per 8"></div>
                 <div id="queueBar" class="queue-bar" aria-label="Accions en curs"></div>
             </section>
+
+            <aside id="detailPanel" class="detail-panel" aria-label="Detall de casella"></aside>
         </main>
 
         <dialog id="newGameDialog" class="modal">

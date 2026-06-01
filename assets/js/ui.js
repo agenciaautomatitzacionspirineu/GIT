@@ -13,6 +13,7 @@ const els = {
   technology: document.getElementById("technologyPanel"),
   objectives: document.getElementById("objectivesPanel"),
   settings: document.getElementById("settingsPanel"),
+  detail: document.getElementById("detailPanel"),
   dialog: document.getElementById("newGameDialog"),
   form: document.getElementById("newGameForm"),
   speed: document.getElementById("speedControl")
@@ -65,6 +66,8 @@ function specialTileDetails(tile, state) {
   let meta = "Especial";
   if (tile.special.stat === "materialCap") meta = `Niv. ${level}/${maxLevel} · Cap. ${fmt(state.caps.wood)}`;
   if (tile.special.stat === "foodCap") meta = `Niv. ${level}/${maxLevel} · Cap. ${fmt(state.caps.food)}`;
+  if (tile.special.stat === "visitors") meta = `Niv. ${level}/${maxLevel} · ${fmt(state.hotel.visitors)} visitants`;
+  if (tile.special.stat === "health") meta = `Niv. ${level}/${maxLevel} · ${fmt(state.health.sick)} malalts`;
   return { title: tile.special.label, meta };
 }
 
@@ -91,6 +94,7 @@ function render(state) {
   renderTechnology(state);
   renderObjectives(state);
   renderSettings(state);
+  renderDetail(state);
 }
 
 function renderMap(state) {
@@ -127,7 +131,7 @@ function renderQueue(state) {
       <div class="queue-item">
         <div>
           <strong>${item.label}</strong>
-          <small>${item.workers} treballadors · ${Math.ceil(item.remaining)}s</small>
+          <small>${item.status === "waiting" ? "En espera" : "Activa"} · ${item.workers} treballadors · ${Math.ceil(item.remaining)}s</small>
         </div>
         <span class="progress"><i style="width:${progress}%"></i></span>
       </div>
@@ -153,9 +157,9 @@ function renderOverview(state, rates) {
     <h2>Estat</h2>
     <div class="metric-grid">
       <div><span>Poblacio</span><strong>${state.population}/${state.populationCap}</strong></div>
-      <div><span>Treball lliure</span><strong>${freeWorkers}</strong></div>
+      <div><span>Treball lliure</span><strong>${freeWorkers}/${engine.healthyWorkers()}</strong></div>
       <div><span>Moral</span><strong>${fmt(state.morale)}%</strong></div>
-      <div><span>Era</span><strong>${engine.getEra().label}</strong></div>
+      <div><span>Malalts</span><strong>${fmt(state.health.sick || 0)}</strong></div>
     </div>
     <h3>Casella seleccionada</h3>
     <div class="tile-card">
@@ -178,7 +182,8 @@ function renderBuildings(state) {
     const locked = !engine.hasRequirements(building.requires);
     const maxed = projectedLevel >= building.maxLevel;
     const cost = engine.scaledCost(building.cost, projectedLevel);
-    const canStart = !locked && !maxed && engine.canAfford(cost) && engine.freeWorkers() >= building.workers;
+    const samePlaceQueued = engine.hasQueuedGroup("building", id);
+    const canStart = !locked && !maxed && engine.canAfford(cost) && (samePlaceQueued || engine.freeWorkers() >= building.workers);
     const status = maxed ? "Nivell maxim" : locked ? "Requereix: " + building.requires.join(", ") : costText(cost);
     const levelText = queued ? `Niv. ${level}/${building.maxLevel} (+${queued})` : `Niv. ${level}/${building.maxLevel}`;
     return `
@@ -245,6 +250,73 @@ function renderObjectives(state) {
   `;
 }
 
+function renderDetail(state) {
+  const tile = state.map.find((item) => item.id === selectedTileId);
+  const details = specialTileDetails(tile, state);
+  if (!tile.special) {
+    const terrainTitle = tile.types.map((type) => window.CIVITAS_DATA.tileTypes[type].label).join(" + ");
+    els.detail.innerHTML = `
+      <h2>${terrainTitle}</h2>
+      <p>Casella de produccio configurable amb terrenys mixtos.</p>
+      <div class="settings-list">
+        <span>Tipus</span><strong>${terrainTitle}</strong>
+        <span>Riquesa</span><strong>${tile.richness.toFixed(1)}</strong>
+        <span>Desenvolupament</span><strong>${tile.development}</strong>
+      </div>
+    `;
+    return;
+  }
+
+  const buildingId = tile.special.buildingId;
+  const building = buildingId ? window.CIVITAS_DATA.buildings[buildingId] : null;
+  const level = buildingId ? state.buildings[buildingId] || 0 : 0;
+  const projectedLevel = buildingId ? engine.projectedBuildingLevel(buildingId) : 0;
+  const cost = building ? engine.scaledCost(building.cost, projectedLevel) : {};
+  const locked = building ? !engine.hasRequirements(building.requires) : true;
+  const maxed = building ? projectedLevel >= building.maxLevel : true;
+  const samePlaceQueued = buildingId ? engine.hasQueuedGroup("building", buildingId) : false;
+  const canBuild = building && !locked && !maxed && engine.canAfford(cost) && (samePlaceQueued || engine.freeWorkers() >= building.workers);
+
+  let extra = `<p>Aquesta fitxa especial encara esta reservada per futures mecaniques.</p>`;
+  if (tile.special.id === "hotel") {
+    extra = `
+      <div class="metric-grid">
+        <div><span>Atraccio</span><strong>${fmt(state.hotel.attraction)}</strong></div>
+        <div><span>Visitants</span><strong>${fmt(state.hotel.visitors)}/${fmt(state.hotel.visitorCap)}</strong></div>
+        <div><span>Intercanvi</span><strong>${fmtRate(state.hotel.exchange)}</strong></div>
+        <div><span>Nivell</span><strong>${level}/${building.maxLevel}</strong></div>
+      </div>
+      <p>L'atraccio combina caselles ocupades, recursos acumulats, poblacio, moral i nivell de l'hotel.</p>
+    `;
+  }
+  if (tile.special.id === "hospital") {
+    extra = `
+      <div class="metric-grid">
+        <div><span>Malalts</span><strong>${fmt(state.health.sick || 0)}</strong></div>
+        <div><span>Treball sa</span><strong>${engine.healthyWorkers()}</strong></div>
+        <div><span>Proteccio</span><strong>${fmt(level * 8)}%</strong></div>
+        <div><span>Nivell</span><strong>${level}/${building.maxLevel}</strong></div>
+      </div>
+      <p>El risc de malaltia puja quan falta menjar o baixa la moral. L'hospital redueix el risc i accelera la recuperacio.</p>
+    `;
+  }
+
+  els.detail.innerHTML = `
+    <h2>${details.title}</h2>
+    <p>${building?.description || "Fitxa especial de ciutat."}</p>
+    ${extra}
+    ${building ? `
+      <div class="detail-action">
+        <small>${locked ? "Requereix: " + building.requires.join(", ") : maxed ? "Nivell maxim" : costText(cost)}</small>
+        <button class="primary-button full" data-special-build="${buildingId}" ${canBuild ? "" : "disabled"}>${maxed ? "Maxim" : "Millorar"}</button>
+      </div>
+    ` : ""}
+  `;
+  els.detail.querySelector("[data-special-build]")?.addEventListener("click", (event) => {
+    engine.build(event.currentTarget.dataset.specialBuild);
+  });
+}
+
 function renderSettings(state) {
   els.settings.innerHTML = `
     <h2>Partida</h2>
@@ -254,7 +326,13 @@ function renderSettings(state) {
       <span>Recursos</span><strong>${state.resourceMode === "finite" ? "Limitats" : "Il.limitats"}</strong>
       <span>Objectiu</span><strong>${state.goal}</strong>
       <span>Guardat</span><strong>LocalStorage</strong>
+      <span>Mida mapa</span><strong>${window.CIVITAS_DATA.configuration.map.size}x${window.CIVITAS_DATA.configuration.map.size}</strong>
+      <span>Caselles mixtes</span><strong>${window.CIVITAS_DATA.configuration.map.allowMixedTiles ? "Si" : "No"}</strong>
+      <span>Llindar menjar baix</span><strong>${Math.round(window.CIVITAS_DATA.configuration.population.lowFoodThreshold * 100)}%</strong>
+      <span>Pes hotel poblacio</span><strong>${window.CIVITAS_DATA.configuration.hotel.populationWeight}</strong>
     </div>
+    <h3>Configuracio preparada</h3>
+    <p>Les regles principals ja estan agrupades a <code>CIVITAS_DATA.configuration</code> per poder editar mapa, poblacio, hotel i futures caselles sense tocar el motor.</p>
     <button class="danger-button full" id="resetSaveButton">Esborrar guardat local</button>
   `;
   document.getElementById("resetSaveButton").addEventListener("click", () => {

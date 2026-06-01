@@ -153,7 +153,7 @@ button:disabled {
 .layout {
   flex: 1;
   display: grid;
-  grid-template-columns: 340px 1fr;
+  grid-template-columns: 330px minmax(0, 1fr) 310px;
   min-height: 0;
 }
 
@@ -207,6 +207,24 @@ button:disabled {
 .world-stage {
   padding: 18px;
   overflow: auto;
+}
+
+.detail-panel {
+  border-left: 1px solid rgba(74, 61, 45, 0.22);
+  background: rgba(255, 250, 242, 0.78);
+  padding: 14px;
+  overflow: auto;
+}
+
+.detail-panel h2 {
+  margin: 0 0 10px;
+  font-size: 22px;
+}
+
+.detail-panel p {
+  margin: 0 0 12px;
+  color: var(--muted);
+  line-height: 1.35;
 }
 
 .stage-header {
@@ -306,6 +324,7 @@ button:disabled {
 .queue-item,
 .empty-state,
 .tile-card,
+.detail-action,
 .metric-grid > div,
 .action-card,
 .tech-node {
@@ -366,6 +385,17 @@ button:disabled {
 
 .tile-card {
   padding: 12px;
+}
+
+.detail-action {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  margin-top: 12px;
+}
+
+.detail-action small {
+  color: var(--muted);
 }
 
 .rate-list,
@@ -482,6 +512,11 @@ button:disabled {
   .side-panel {
     border-right: 0;
     border-bottom: 1px solid rgba(74, 61, 45, 0.22);
+  }
+
+  .detail-panel {
+    border-left: 0;
+    border-top: 1px solid rgba(74, 61, 45, 0.22);
   }
 }
 

@@ -14,4 +14,9 @@ return [
         'password' => getenv('DB_PASSWORD') ?: '',
         'charset' => 'utf8mb4',
     ],
+    'gameplay' => [
+        'queue_mode' => 'parallel_by_target',
+        'same_target_policy' => 'sequential',
+        'configuration_storage' => 'json_columns',
+    ],
 ];

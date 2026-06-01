@@ -105,6 +105,26 @@ window.CIVITAS_DATA = {
       cost: { wood: 180, stone: 130, knowledge: 40 },
       effects: { knowledgeRate: 0.12 },
       requires: ["rituals", "storage"]
+    },
+    hotel: {
+      label: "Hotel",
+      description: "Atrau visitants i augmenta l'intercanvi amb altres comunitats.",
+      maxLevel: 8,
+      baseTime: 70,
+      workers: 4,
+      cost: { wood: 140, stone: 95, fiber: 45, food: 80 },
+      effects: { visitorCap: 8, exchangeRate: 0.018 },
+      requires: ["storage"]
+    },
+    hospital: {
+      label: "Hospital",
+      description: "Redueix malalties i accelera la recuperacio dels treballadors.",
+      maxLevel: 8,
+      baseTime: 75,
+      workers: 5,
+      cost: { wood: 160, stone: 120, fiber: 70, knowledge: 35 },
+      effects: { sicknessResistance: 0.08, recoveryRate: 0.018 },
+      requires: ["rituals"]
     }
   },
   technologies: {
@@ -172,9 +192,9 @@ window.CIVITAS_DATA = {
     { id: "market", label: "Mercat" },
     { id: "safety", label: "Seguretat" },
     { id: "townHall", label: "Ajuntament" },
-    { id: "mainSquare", label: "Plaça Major" },
-    { id: "hotel", label: "Hotel" },
-    { id: "hospital", label: "Hospital" },
+    { id: "mainSquare", label: "Placa Major" },
+    { id: "hotel", label: "Hotel", buildingId: "hotel", stat: "visitors" },
+    { id: "hospital", label: "Hospital", buildingId: "hospital", stat: "health" },
     { id: "empty-1", label: "" },
     { id: "empty-2", label: "" },
     { id: "empty-3", label: "" },
@@ -189,5 +209,26 @@ window.CIVITAS_DATA = {
     { label: "Sequera curta", kind: "penalty", duration: 65, modifiers: { food: 0.72, wood: 0.92 } },
     { label: "Animals propers", kind: "danger", duration: 55, modifiers: { food: 0.88 }, safetyHit: 8 },
     { label: "Fred intens", kind: "penalty", duration: 60, modifiers: { food: 0.82, knowledge: 0.9 } }
-  ]
+  ],
+  configuration: {
+    map: {
+      size: 8,
+      specialZone: { fromX: 2, toX: 5, fromY: 2, toY: 5 },
+      allowMixedTiles: true,
+      allowFiniteResources: true
+    },
+    population: {
+      baseWorkersPerPerson: 1,
+      lowFoodThreshold: 0.18,
+      starvationSicknessMultiplier: 2.4
+    },
+    hotel: {
+      visitorDrift: 0.015,
+      resourceWeight: 35,
+      populationWeight: 0.8,
+      occupiedTileWeight: 2,
+      moraleWeight: 0.25,
+      levelWeight: 18
+    }
+  }
 };

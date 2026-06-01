@@ -8,11 +8,15 @@ Joc de navegador en PHP, HTML, CSS i JavaScript inspirat en gestio de ciutat, pr
 - Recursos amb produccio continua: menjar, fusta, pedra, fibra, coneixement i seguretat.
 - Poblacio, treballadors disponibles, moral i consum de menjar.
 - Construccions amb compte enrere i sense limit fix d'accions simultanies.
+- Cua paral.lela per lloc: accions diferents avancen alhora, pero les del mateix objectiu esperen en ordre.
 - Recerca tecnologica inicial de la prehistoria.
+- Fitxes especials de ciutat: magatzem, graner, hotel, hospital i espais reservats.
+- Hotel amb atraccio, visitants i intercanvi calculat segons ciutat, recursos, poblacio i moral.
+- Malalties que redueixen treballadors disponibles, mitigades per l'hospital.
 - Esdeveniments naturals que alteren produccio o seguretat.
 - Nova partida configurable: dificultat, recursos limitats/il.limitats i objectiu.
 - Persistencia local amb `localStorage` i endpoints PHP preparats per guardar a sessio.
-- Esquema MySQL inicial a `database/schema.sql`.
+- Esquema MySQL modular a `database/schema.sql` amb partides, cues, configuracio de regles i caselles.
 
 ## Executar en local
 
@@ -40,3 +44,4 @@ Obre `http://127.0.0.1:8000`.
 3. Convertir l'arbre tecnologic en una visualitzacio amb branques i prerequisits.
 4. Afegir edificis especialitzats per cada era.
 5. Afegir informes historics i estadistiques de produccio.
+6. Crear una pantalla d'administracio per editar la configuracio de cada casella.
