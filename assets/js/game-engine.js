@@ -15,7 +15,7 @@ class GameEngine {
       harsh: { eventChance: 0.034, production: 0.88, consumption: 1.18 }
     };
 
-    return {
+    const state = {
       id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()),
       name: options.name || "Aldea Nova",
       createdAt: Date.now(),
@@ -28,7 +28,7 @@ class GameEngine {
       populationCap: 18,
       morale: 74,
       resources: { food: 180, wood: 135, stone: 70, fiber: 55, knowledge: 8, safety: 36 },
-      caps: { food: 420, wood: 360, stone: 360, fiber: 260, knowledge: 180, safety: 100 },
+      caps: this.baseCaps(),
       buildings: { hearth: 1, gatherers: 1 },
       technologies: [],
       queue: [],
@@ -37,25 +37,64 @@ class GameEngine {
       log: "La comunitat s'ha assentat. Cal produir, guardar i aprendre.",
       map: this.createMap(options.resourceMode || "infinite")
     };
+    this.state = state;
+    this.recalculateDerivedCaps();
+    return state;
   }
 
   createMap(resourceMode) {
     const pattern = ["forest", "meadow", "quarry", "river", "hill"];
+    const specialTileByIndex = this.specialTileByIndex();
     return Array.from({ length: 64 }, (_, index) => {
       const x = index % 8;
       const y = Math.floor(index / 8);
+      const special = specialTileByIndex[index];
       const primary = pattern[(x * 3 + y * 5 + index) % pattern.length];
       const secondary = pattern[(x + y * 2 + 2) % pattern.length];
       return {
         id: index,
         x,
         y,
-        types: primary === secondary ? [primary] : [primary, secondary],
+        types: special ? [] : primary === secondary ? [primary] : [primary, secondary],
+        special,
         richness: 0.7 + (((x + 1) * (y + 3)) % 7) / 10,
-        reserve: resourceMode === "finite" ? 520 + ((index * 97) % 540) : null,
+        reserve: special || resourceMode !== "finite" ? null : 520 + ((index * 97) % 540),
         development: 0
       };
     });
+  }
+
+  baseCaps() {
+    return { food: 420, wood: 360, stone: 360, fiber: 260, knowledge: 180, safety: 100 };
+  }
+
+  specialTileByIndex() {
+    const specials = this.data.specialTiles || [];
+    const entries = [];
+    for (let y = 2; y <= 5; y += 1) {
+      for (let x = 2; x <= 5; x += 1) {
+        entries.push(y * 8 + x);
+      }
+    }
+    return Object.fromEntries(entries.map((index, position) => [index, specials[position]]));
+  }
+
+  normalizeState() {
+    const specialTileByIndex = this.specialTileByIndex();
+    this.state.map ||= this.createMap(this.state.resourceMode || "infinite");
+    for (const tile of this.state.map) {
+      const special = specialTileByIndex[tile.id];
+      tile.special = special || null;
+      if (special) {
+        tile.types = [];
+        tile.reserve = null;
+      }
+      tile.development ||= 0;
+    }
+    this.state.buildings ||= {};
+    this.state.technologies ||= [];
+    this.state.queue ||= [];
+    this.recalculateDerivedCaps();
   }
 
   start() {
@@ -83,6 +122,7 @@ class GameEngine {
     try {
       this.state = JSON.parse(saved);
       this.state.difficultyRules ||= { eventChance: 0.02, production: 1, consumption: 1 };
+      this.normalizeState();
       this.notify();
       return true;
     } catch {
@@ -128,6 +168,7 @@ class GameEngine {
   productionRates() {
     const rates = { food: 0.06, wood: 0.03, stone: 0.018, fiber: 0.018, knowledge: 0.012, safety: 0 };
     for (const tile of this.state.map) {
+      if (!tile.types?.length) continue;
       if (this.state.resourceMode === "finite" && tile.reserve <= 0) continue;
       const tileWeight = (1 + tile.development * 0.08) * tile.richness / tile.types.length;
       for (const type of tile.types) {
@@ -204,13 +245,21 @@ class GameEngine {
     return Object.fromEntries(Object.entries(cost).map(([key, value]) => [key, Math.round(value * Math.pow(1.55, level))]));
   }
 
+  buildingQueuedCount(buildingId) {
+    return this.state.queue.filter((item) => item.type === "building" && item.target === buildingId).length;
+  }
+
+  projectedBuildingLevel(buildingId) {
+    return (this.state.buildings[buildingId] || 0) + this.buildingQueuedCount(buildingId);
+  }
+
   hasRequirements(requirements = []) {
     return requirements.every((id) => this.state.technologies.includes(id));
   }
 
   build(buildingId) {
     const building = this.data.buildings[buildingId];
-    const level = this.state.buildings[buildingId] || 0;
+    const level = this.projectedBuildingLevel(buildingId);
     if (!building || level >= building.maxLevel || !this.hasRequirements(building.requires)) return false;
     const cost = this.scaledCost(building.cost, level);
     if (!this.canAfford(cost) || this.freeWorkers() < building.workers) return false;
@@ -280,7 +329,8 @@ class GameEngine {
 
   completeQueueItem(item) {
     if (item.type === "building") {
-      this.state.buildings[item.target] = (this.state.buildings[item.target] || 0) + 1;
+      const maxLevel = this.data.buildings[item.target]?.maxLevel || Infinity;
+      this.state.buildings[item.target] = Math.min(maxLevel, (this.state.buildings[item.target] || 0) + 1);
       this.applyBuildingCaps(item.target);
       this.state.log = `${this.data.buildings[item.target].label} ha pujat de nivell.`;
     }
@@ -296,16 +346,29 @@ class GameEngine {
   }
 
   applyBuildingCaps(buildingId) {
-    const level = this.state.buildings[buildingId] || 0;
-    const effects = this.data.buildings[buildingId]?.effects || {};
-    if (effects.foodCap) this.state.caps.food += effects.foodCap;
-    if (effects.materialCap) {
-      this.state.caps.wood += effects.materialCap;
-      this.state.caps.stone += effects.materialCap;
-      this.state.caps.fiber += Math.round(effects.materialCap * 0.7);
+    this.recalculateDerivedCaps();
+  }
+
+  recalculateDerivedCaps() {
+    const caps = this.baseCaps();
+    let populationCap = 18;
+    for (const [buildingId, level] of Object.entries(this.state.buildings || {})) {
+      const effects = this.data.buildings[buildingId]?.effects || {};
+      if (effects.foodCap) caps.food += effects.foodCap * level;
+      if (effects.materialCap) {
+        caps.wood += effects.materialCap * level;
+        caps.stone += effects.materialCap * level;
+        caps.fiber += Math.round(effects.materialCap * 0.7) * level;
+      }
+      if (buildingId === "hearth") {
+        for (let builtLevel = 1; builtLevel <= level; builtLevel += 1) {
+          populationCap += 2 + builtLevel;
+        }
+      }
+      if (buildingId === "council") caps.knowledge += 160 * level;
     }
-    if (buildingId === "hearth") this.state.populationCap += 2 + level;
-    if (buildingId === "council") this.state.caps.knowledge += 160;
+    this.state.caps = caps;
+    this.state.populationCap = populationCap;
   }
 
   advanceEvent(seconds) {

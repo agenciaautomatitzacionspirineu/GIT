@@ -83,7 +83,7 @@ window.CIVITAS_DATA = {
       baseTime: 45,
       workers: 3,
       cost: { wood: 90, stone: 35 },
-      effects: { materialCap: 260 },
+      effects: { materialCap: 500 },
       requires: ["storage"]
     },
     palisade: {
@@ -166,6 +166,24 @@ window.CIVITAS_DATA = {
     river: { label: "Riera", yields: { food: 0.04, fiber: 0.04 }, color: "#4c93a8" },
     hill: { label: "Turons", yields: { stone: 0.04, wood: 0.03 }, color: "#897455" }
   },
+  specialTiles: [
+    { id: "warehouse", label: "Magatzem", buildingId: "warehouse", stat: "materialCap" },
+    { id: "granary", label: "Graner", buildingId: "granary", stat: "foodCap" },
+    { id: "market", label: "Mercat" },
+    { id: "safety", label: "Seguretat" },
+    { id: "townHall", label: "Ajuntament" },
+    { id: "mainSquare", label: "Plaça Major" },
+    { id: "hotel", label: "Hotel" },
+    { id: "hospital", label: "Hospital" },
+    { id: "empty-1", label: "" },
+    { id: "empty-2", label: "" },
+    { id: "empty-3", label: "" },
+    { id: "empty-4", label: "" },
+    { id: "empty-5", label: "" },
+    { id: "empty-6", label: "" },
+    { id: "empty-7", label: "" },
+    { id: "empty-8", label: "" }
+  ],
   disasters: [
     { label: "Pluges generoses", kind: "bonus", duration: 70, modifiers: { food: 1.25, fiber: 1.1 } },
     { label: "Sequera curta", kind: "penalty", duration: 65, modifiers: { food: 0.72, wood: 0.92 } },

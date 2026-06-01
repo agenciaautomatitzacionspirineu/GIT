@@ -57,6 +57,17 @@ function costText(cost) {
     .join(" · ");
 }
 
+function specialTileDetails(tile, state) {
+  if (!tile.special?.label) return { title: "Espai reservat", meta: "Pendent" };
+  const building = tile.special.buildingId ? window.CIVITAS_DATA.buildings[tile.special.buildingId] : null;
+  const level = tile.special.buildingId ? state.buildings[tile.special.buildingId] || 0 : null;
+  const maxLevel = building?.maxLevel;
+  let meta = "Especial";
+  if (tile.special.stat === "materialCap") meta = `Niv. ${level}/${maxLevel} · Cap. ${fmt(state.caps.wood)}`;
+  if (tile.special.stat === "foodCap") meta = `Niv. ${level}/${maxLevel} · Cap. ${fmt(state.caps.food)}`;
+  return { title: tile.special.label, meta };
+}
+
 function render(state) {
   const era = engine.getEra();
   const rates = engine.productionRates();
@@ -84,13 +95,15 @@ function render(state) {
 
 function renderMap(state) {
   els.mapGrid.innerHTML = state.map.map((tile) => {
-    const names = tile.types.map((type) => window.CIVITAS_DATA.tileTypes[type].label).join(" + ");
-    const classes = tile.types.join(" ");
+    const specialDetails = specialTileDetails(tile, state);
+    const names = tile.special ? specialDetails.title : tile.types.map((type) => window.CIVITAS_DATA.tileTypes[type].label).join(" + ");
+    const classes = tile.special ? `special ${tile.special.label ? "special-building" : "special-empty"}` : tile.types.join(" ");
     const reserve = tile.reserve === null ? "∞" : fmt(tile.reserve);
+    const meta = tile.special ? specialDetails.meta : `Niv. ${tile.development} · ${reserve}`;
     return `
       <button class="tile ${classes} ${tile.id === selectedTileId ? "selected" : ""}" data-tile="${tile.id}" style="--richness:${tile.richness}">
         <span class="tile-types">${names}</span>
-        <span class="tile-meta">Niv. ${tile.development} · ${reserve}</span>
+        <span class="tile-meta">${meta}</span>
       </button>
     `;
   }).join("");
@@ -125,6 +138,17 @@ function renderQueue(state) {
 function renderOverview(state, rates) {
   const selectedTile = state.map.find((tile) => tile.id === selectedTileId);
   const freeWorkers = engine.freeWorkers();
+  const selectedSpecial = specialTileDetails(selectedTile, state);
+  const selectedTileTitle = selectedTile.special
+    ? selectedSpecial.title
+    : selectedTile.types.map((type) => window.CIVITAS_DATA.tileTypes[type].label).join(" + ");
+  const selectedTileBody = selectedTile.special
+    ? `<p>${selectedSpecial.meta}</p><p>Aquesta casella forma part del nucli especial de la ciutat.</p>`
+    : `
+      <p>Riquesa ${selectedTile.richness.toFixed(1)} · Desenvolupament ${selectedTile.development}</p>
+      <p>Reserva: ${selectedTile.reserve === null ? "il.limitada" : fmt(selectedTile.reserve)}</p>
+      <button class="primary-button full" id="developTileButton">Millorar casella</button>
+    `;
   els.overview.innerHTML = `
     <h2>Estat</h2>
     <div class="metric-grid">
@@ -135,34 +159,36 @@ function renderOverview(state, rates) {
     </div>
     <h3>Casella seleccionada</h3>
     <div class="tile-card">
-      <strong>${selectedTile.types.map((type) => window.CIVITAS_DATA.tileTypes[type].label).join(" + ")}</strong>
-      <p>Riquesa ${selectedTile.richness.toFixed(1)} · Desenvolupament ${selectedTile.development}</p>
-      <p>Reserva: ${selectedTile.reserve === null ? "il.limitada" : fmt(selectedTile.reserve)}</p>
-      <button class="primary-button full" id="developTileButton">Millorar casella</button>
+      <strong>${selectedTileTitle}</strong>
+      ${selectedTileBody}
     </div>
     <h3>Produccio neta</h3>
     <div class="rate-list">
       ${Object.entries(rates).map(([key, value]) => `<span>${window.CIVITAS_DATA.resources[key]?.label || key}</span><strong>${fmtRate(value)}</strong>`).join("")}
     </div>
   `;
-  document.getElementById("developTileButton").addEventListener("click", () => engine.developTile(selectedTileId));
+  document.getElementById("developTileButton")?.addEventListener("click", () => engine.developTile(selectedTileId));
 }
 
 function renderBuildings(state) {
   els.buildings.innerHTML = `<h2>Edificis</h2>` + Object.entries(window.CIVITAS_DATA.buildings).map(([id, building]) => {
     const level = state.buildings[id] || 0;
+    const queued = engine.buildingQueuedCount(id);
+    const projectedLevel = engine.projectedBuildingLevel(id);
     const locked = !engine.hasRequirements(building.requires);
-    const maxed = level >= building.maxLevel;
-    const cost = engine.scaledCost(building.cost, level);
+    const maxed = projectedLevel >= building.maxLevel;
+    const cost = engine.scaledCost(building.cost, projectedLevel);
     const canStart = !locked && !maxed && engine.canAfford(cost) && engine.freeWorkers() >= building.workers;
+    const status = maxed ? "Nivell maxim" : locked ? "Requereix: " + building.requires.join(", ") : costText(cost);
+    const levelText = queued ? `Niv. ${level}/${building.maxLevel} (+${queued})` : `Niv. ${level}/${building.maxLevel}`;
     return `
       <article class="action-card ${locked ? "locked" : ""}">
         <div>
-          <h3>${building.label} <span>Niv. ${level}/${building.maxLevel}</span></h3>
+          <h3>${building.label} <span>${levelText}</span></h3>
           <p>${building.description}</p>
-          <small>${locked ? "Requereix: " + building.requires.join(", ") : costText(cost)}</small>
+          <small>${status}</small>
         </div>
-        <button data-build="${id}" ${canStart ? "" : "disabled"}>Construir</button>
+        <button data-build="${id}" ${canStart ? "" : "disabled"}>${maxed ? "Maxim" : "Construir"}</button>
       </article>
     `;
   }).join("");

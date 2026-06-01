@@ -269,6 +269,13 @@ button:disabled {
 .tile.quarry { background: linear-gradient(135deg, #78776f, #a9a392); }
 .tile.river { background: linear-gradient(135deg, #3f8297, #78a85a); }
 .tile.hill { background: linear-gradient(135deg, #806b4e, #8e9657); }
+.tile.special-building { background: linear-gradient(135deg, #54483a, #2f7361); }
+.tile.special-empty {
+  color: var(--muted);
+  text-shadow: none;
+  background: repeating-linear-gradient(135deg, #efe5d7 0 9px, #e3d6c5 9px 18px);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.45);
+}
 
 .tile.selected {
   border-color: #fff;
@@ -281,6 +288,10 @@ button:disabled {
 }
 
 .tile-meta {
+  font-size: 12px;
+}
+
+.tile.special .tile-types {
   font-size: 12px;
 }
 
