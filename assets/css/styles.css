@@ -89,6 +89,7 @@ button:disabled {
 
 .brand small,
 .clock-panel label,
+.clock-panel small,
 .resource-pill small,
 .queue-item small,
 .action-card small,
@@ -137,6 +138,10 @@ button:disabled {
 .clock-panel {
   display: grid;
   gap: 4px;
+}
+
+.clock-panel small {
+  font-weight: 700;
 }
 
 .clock-panel select,

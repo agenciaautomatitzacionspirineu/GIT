@@ -29,10 +29,12 @@ $settings = require __DIR__ . '/config/game.php';
                 <select id="speedControl">
                     <option value="1">1x</option>
                     <option value="2">2x</option>
-                    <option value="5" selected>5x</option>
+                    <option value="5">5x</option>
                     <option value="10">10x</option>
                     <option value="25">25x</option>
+                    <option value="100" selected>100x</option>
                 </select>
+                <small id="dateLabel">Any 1, dia 1</small>
             </div>
         </header>
 

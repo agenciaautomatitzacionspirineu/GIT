@@ -1,7 +1,7 @@
 class GameEngine {
   constructor(data) {
     this.data = data;
-    this.speed = 5;
+    this.speed = 100;
     this.lastTick = performance.now();
     this.listeners = new Set();
     this.state = this.createNewState();
@@ -24,6 +24,8 @@ class GameEngine {
       resourceMode: options.resourceMode || "infinite",
       goal: options.goal || "balanced",
       eraIndex: 0,
+      calendar: { day: 1, year: 1, totalDays: 0 },
+      demographics: { children: 3, adults: 8, elders: 1, ageProgress: 0 },
       population: 12,
       populationCap: 18,
       morale: 74,
@@ -95,6 +97,9 @@ class GameEngine {
     }
     this.state.buildings ||= {};
     this.state.technologies ||= [];
+    this.state.calendar ||= { day: 1, year: 1, totalDays: 0 };
+    this.state.demographics ||= this.demographicsFromPopulation(this.state.population || 12);
+    this.syncPopulationFromDemographics();
     this.state.health ||= { sick: 0, lastChange: 0 };
     this.state.hotel ||= { attraction: 0, visitors: 0, visitorCap: 0, exchange: 0 };
     this.state.queue ||= [];
@@ -151,6 +156,7 @@ class GameEngine {
     if (elapsed <= 0) return;
 
     this.advanceQueue(elapsed);
+    this.advanceCalendar(elapsed);
     this.produce(elapsed);
     this.updateHotelStats(elapsed);
     this.checkHealth(elapsed);
@@ -168,12 +174,51 @@ class GameEngine {
     return this.data.eras[this.state.eraIndex];
   }
 
+  demographicsFromPopulation(population) {
+    return {
+      children: Math.max(1, Math.round(population * 0.24)),
+      adults: Math.max(1, Math.round(population * 0.66)),
+      elders: Math.max(0, population - Math.max(1, Math.round(population * 0.24)) - Math.max(1, Math.round(population * 0.66))),
+      ageProgress: 0
+    };
+  }
+
+  syncPopulationFromDemographics() {
+    const demographics = this.state.demographics;
+    this.state.population = Math.max(0, Math.round(demographics.children + demographics.adults + demographics.elders));
+  }
+
+  advanceCalendar(seconds) {
+    const dayGain = seconds / 20;
+    this.state.calendar.totalDays += dayGain;
+    const dayIndex = Math.floor(this.state.calendar.totalDays);
+    this.state.calendar.year = 1 + Math.floor(dayIndex / 360);
+    this.state.calendar.day = 1 + (dayIndex % 360);
+    this.advanceAges(dayGain);
+  }
+
+  advanceAges(days) {
+    const rules = this.data.configuration?.population || {};
+    const daysPerYear = rules.ageDaysPerYear || 24;
+    this.state.demographics.ageProgress = (this.state.demographics.ageProgress || 0) + days / daysPerYear;
+    while (this.state.demographics.ageProgress >= 1) {
+      this.state.demographics.ageProgress -= 1;
+      const childrenToAdults = this.state.demographics.children / Math.max(1, rules.adultStartAge || 15);
+      const adultsToElders = this.state.demographics.adults / Math.max(1, (rules.elderStartAge || 60) - (rules.adultStartAge || 15));
+      const elderDeaths = this.state.demographics.elders * (rules.yearlyDeathRate || 0.018) * 2.2;
+      this.state.demographics.children = Math.max(0, this.state.demographics.children - childrenToAdults);
+      this.state.demographics.adults = Math.max(0, this.state.demographics.adults + childrenToAdults - adultsToElders);
+      this.state.demographics.elders = Math.max(0, this.state.demographics.elders + adultsToElders - elderDeaths);
+    }
+    this.syncPopulationFromDemographics();
+  }
+
   usedWorkers() {
     return this.activeQueueItems().reduce((sum, item) => sum + item.workers, 0);
   }
 
   healthyWorkers() {
-    return Math.max(0, this.state.population - Math.ceil(this.state.health?.sick || 0));
+    return Math.max(0, Math.floor(this.state.demographics.adults) - Math.ceil(this.state.health?.sick || 0));
   }
 
   freeWorkers() {
@@ -394,9 +439,14 @@ class GameEngine {
     this.recalculateDerivedCaps();
   }
 
+  houseCapacity(level) {
+    const table = this.data.configuration?.population?.houseCapacityByLevel || [0, 8, 14, 22, 32, 44, 58, 72, 84, 94, 100];
+    return table[Math.min(level, table.length - 1)] || 0;
+  }
+
   recalculateDerivedCaps() {
     const caps = this.baseCaps();
-    let populationCap = 18;
+    let populationCap = this.data.configuration?.population?.baseHousing || 10;
     for (const [buildingId, level] of Object.entries(this.state.buildings || {})) {
       const effects = this.data.buildings[buildingId]?.effects || {};
       if (effects.foodCap) caps.food += effects.foodCap * level;
@@ -405,6 +455,7 @@ class GameEngine {
         caps.stone += effects.materialCap * level;
         caps.fiber += Math.round(effects.materialCap * 0.7) * level;
       }
+      if (effects.housing) populationCap += this.houseCapacity(level);
       if (buildingId === "hearth") {
         for (let builtLevel = 1; builtLevel <= level; builtLevel += 1) {
           populationCap += 2 + builtLevel;
@@ -481,9 +532,10 @@ class GameEngine {
     const sicknessRate = (0.0012 + starvationPressure * 0.01 + moralePressure * 0.003 + eventPressure * 0.002) * (1 - resistance);
     const recoveryRate = 0.002 + hospitalLevel * (this.data.buildings.hospital?.effects?.recoveryRate || 0.018);
     const sick = this.state.health.sick || 0;
-    const newSick = Math.max(0, this.state.population - sick) * sicknessRate * seconds;
+    const adultCount = Math.max(0, this.state.demographics.adults || 0);
+    const newSick = Math.max(0, adultCount - sick) * sicknessRate * seconds;
     const recovered = sick * recoveryRate * seconds;
-    const nextSick = Math.max(0, Math.min(this.state.population, sick + newSick - recovered));
+    const nextSick = Math.max(0, Math.min(adultCount, sick + newSick - recovered));
     if (Math.floor(nextSick) > Math.floor(sick)) this.state.log = "Algunes persones han emmalaltit i hi ha menys treballadors disponibles.";
     if (Math.floor(nextSick) < Math.floor(sick)) this.state.log = "Part de la poblacio malalta s'ha recuperat.";
     this.state.health.sick = nextSick;
@@ -493,14 +545,27 @@ class GameEngine {
     const food = this.state.resources.food;
     if (food <= 1) {
       this.state.morale = Math.max(0, this.state.morale - 0.05 * seconds);
-      if (Math.random() < 0.01) this.state.population = Math.max(4, this.state.population - 1);
+      if (Math.random() < 0.01) this.state.demographics.elders = Math.max(0, this.state.demographics.elders - 1);
+      this.syncPopulationFromDemographics();
       return;
     }
-    const growthPressure = this.state.morale / 100 + food / this.state.caps.food;
-    if (this.state.population < this.state.populationCap && Math.random() < growthPressure * seconds * 0.0018) {
-      this.state.population += 1;
-      this.state.log = "La poblacio ha crescut.";
+    const freeHousing = Math.max(0, this.state.populationCap - this.state.population);
+    const rules = this.data.configuration?.population || {};
+    const hotelPull = Math.min(1.8, (this.state.hotel.attraction || 0) / 120 + (this.state.hotel.visitors || 0) / 80);
+    const growthPressure = (this.state.morale / 100 + food / this.state.caps.food + hotelPull) * (freeHousing > 0 ? 1 : 0);
+    const birthChance = (rules.yearlyBirthRate || 0.045) * seconds / 480;
+    const migrationChance = (rules.yearlyMigrationRate || 0.08) * growthPressure * seconds / 420;
+    if (freeHousing > 0 && Math.random() < birthChance * Math.max(1, this.state.demographics.adults / 8)) {
+      this.state.demographics.children += 1;
+      this.syncPopulationFromDemographics();
+      this.state.log = "Ha nascut un infant a la comunitat.";
     }
+    if (freeHousing > 0 && Math.random() < migrationChance) {
+      this.state.demographics.adults += 1;
+      this.syncPopulationFromDemographics();
+      this.state.log = "Una persona adulta s'ha instal.lat a la ciutat.";
+    }
+    if (freeHousing <= 0) this.state.morale = Math.max(0, this.state.morale - 0.002 * seconds);
     this.state.morale = Math.min(100, this.state.morale + 0.005 * seconds);
   }
 

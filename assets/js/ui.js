@@ -3,6 +3,7 @@ const engine = new GameEngine(window.CIVITAS_DATA);
 
 const els = {
   eraLabel: document.getElementById("eraLabel"),
+  dateLabel: document.getElementById("dateLabel"),
   resourceBar: document.getElementById("resourceBar"),
   mapGrid: document.getElementById("mapGrid"),
   queueBar: document.getElementById("queueBar"),
@@ -68,6 +69,8 @@ function specialTileDetails(tile, state) {
   if (tile.special.stat === "foodCap") meta = `Niv. ${level}/${maxLevel} · Cap. ${fmt(state.caps.food)}`;
   if (tile.special.stat === "visitors") meta = `Niv. ${level}/${maxLevel} · ${fmt(state.hotel.visitors)} visitants`;
   if (tile.special.stat === "health") meta = `Niv. ${level}/${maxLevel} · ${fmt(state.health.sick)} malalts`;
+  if (tile.special.stat === "housing") meta = `Niv. ${level}/${maxLevel} · ${fmt(engine.houseCapacity(level))} places`;
+  if (tile.special.stat === "education") meta = `Niv. ${level}/${maxLevel} · Escola`;
   return { title: tile.special.label, meta };
 }
 
@@ -75,6 +78,7 @@ function render(state) {
   const era = engine.getEra();
   const rates = engine.productionRates();
   els.eraLabel.textContent = era.label;
+  els.dateLabel.textContent = `Any ${state.calendar.year}, dia ${state.calendar.day}`;
   els.settlementName.textContent = state.name;
   els.eventLog.textContent = state.log;
 
@@ -158,8 +162,12 @@ function renderOverview(state, rates) {
     <div class="metric-grid">
       <div><span>Poblacio</span><strong>${state.population}/${state.populationCap}</strong></div>
       <div><span>Treball lliure</span><strong>${freeWorkers}/${engine.healthyWorkers()}</strong></div>
-      <div><span>Moral</span><strong>${fmt(state.morale)}%</strong></div>
+      <div><span>Nens 0-15</span><strong>${fmt(state.demographics.children)}</strong></div>
+      <div><span>Adults 15-60</span><strong>${fmt(state.demographics.adults)}</strong></div>
+      <div><span>Majors 60+</span><strong>${fmt(state.demographics.elders)}</strong></div>
       <div><span>Malalts</span><strong>${fmt(state.health.sick || 0)}</strong></div>
+      <div><span>Moral</span><strong>${fmt(state.morale)}%</strong></div>
+      <div><span>Era</span><strong>${engine.getEra().label}</strong></div>
     </div>
     <h3>Casella seleccionada</h3>
     <div class="tile-card">
@@ -300,6 +308,28 @@ function renderDetail(state) {
       <p>El risc de malaltia puja quan falta menjar o baixa la moral. L'hospital redueix el risc i accelera la recuperacio.</p>
     `;
   }
+  if (tile.special.stat === "housing") {
+    extra = `
+      <div class="metric-grid">
+        <div><span>Places casa</span><strong>${fmt(engine.houseCapacity(level))}/100</strong></div>
+        <div><span>Places totals</span><strong>${fmt(state.populationCap)}</strong></div>
+        <div><span>Ocupacio</span><strong>${fmt(state.population)}/${fmt(state.populationCap)}</strong></div>
+        <div><span>Nivell</span><strong>${level}/${building.maxLevel}</strong></div>
+      </div>
+      <p>Les cases limiten quanta gent pot venir. Els nivells finals son molt mes exigents i cada casa arriba a 100 places al nivell 10.</p>
+    `;
+  }
+  if (tile.special.id === "school") {
+    extra = `
+      <div class="metric-grid">
+        <div><span>Nens</span><strong>${fmt(state.demographics.children)}</strong></div>
+        <div><span>Adults futurs</span><strong>${fmt(state.demographics.children / 15)}</strong></div>
+        <div><span>Coneixement</span><strong>+${((building.effects.knowledgeRate || 0) * level).toFixed(2)}/s</strong></div>
+        <div><span>Nivell</span><strong>${level}/${building.maxLevel}</strong></div>
+      </div>
+      <p>L'escola reforca el coneixement i prepara la transicio dels nens cap a adults productius.</p>
+    `;
+  }
 
   els.detail.innerHTML = `
     <h2>${details.title}</h2>
@@ -330,6 +360,8 @@ function renderSettings(state) {
       <span>Caselles mixtes</span><strong>${window.CIVITAS_DATA.configuration.map.allowMixedTiles ? "Si" : "No"}</strong>
       <span>Llindar menjar baix</span><strong>${Math.round(window.CIVITAS_DATA.configuration.population.lowFoodThreshold * 100)}%</strong>
       <span>Pes hotel poblacio</span><strong>${window.CIVITAS_DATA.configuration.hotel.populationWeight}</strong>
+      <span>Dies per any vital</span><strong>${window.CIVITAS_DATA.configuration.population.ageDaysPerYear}</strong>
+      <span>Places casa max.</span><strong>100</strong>
     </div>
     <h3>Configuracio preparada</h3>
     <p>Les regles principals ja estan agrupades a <code>CIVITAS_DATA.configuration</code> per poder editar mapa, poblacio, hotel i futures caselles sense tocar el motor.</p>

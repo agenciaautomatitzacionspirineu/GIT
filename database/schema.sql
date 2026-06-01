@@ -78,6 +78,21 @@ CREATE TABLE game_rule_config (
   UNIQUE KEY rule_config_scope_key_unique (game_id, scope, config_key)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE game_population_snapshots (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  game_id CHAR(36) NOT NULL,
+  game_year INT UNSIGNED NOT NULL,
+  game_day SMALLINT UNSIGNED NOT NULL,
+  children DECIMAL(12,3) NOT NULL DEFAULT 0,
+  adults DECIMAL(12,3) NOT NULL DEFAULT 0,
+  elders DECIMAL(12,3) NOT NULL DEFAULT 0,
+  sick_adults DECIMAL(12,3) NOT NULL DEFAULT 0,
+  housing_capacity INT UNSIGNED NOT NULL DEFAULT 0,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT population_snapshots_game_fk FOREIGN KEY (game_id) REFERENCES games(id) ON DELETE CASCADE,
+  INDEX population_snapshots_game_date_idx (game_id, game_year, game_day)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE content_versions (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   version VARCHAR(32) NOT NULL UNIQUE,

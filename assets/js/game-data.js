@@ -125,6 +125,56 @@ window.CIVITAS_DATA = {
       cost: { wood: 160, stone: 120, fiber: 70, knowledge: 35 },
       effects: { sicknessResistance: 0.08, recoveryRate: 0.018 },
       requires: ["rituals"]
+    },
+    house_1: {
+      label: "Casa nord",
+      description: "Habitatges escalables que limiten quanta poblacio pot viure a la ciutat.",
+      maxLevel: 10,
+      baseTime: 46,
+      workers: 3,
+      cost: { wood: 85, stone: 35, fiber: 30, food: 35 },
+      effects: { housing: true },
+      requires: []
+    },
+    house_2: {
+      label: "Casa est",
+      description: "Habitatges escalables que limiten quanta poblacio pot viure a la ciutat.",
+      maxLevel: 10,
+      baseTime: 50,
+      workers: 3,
+      cost: { wood: 95, stone: 42, fiber: 34, food: 40 },
+      effects: { housing: true },
+      requires: []
+    },
+    house_3: {
+      label: "Casa sud",
+      description: "Habitatges escalables que limiten quanta poblacio pot viure a la ciutat.",
+      maxLevel: 10,
+      baseTime: 54,
+      workers: 4,
+      cost: { wood: 105, stone: 48, fiber: 38, food: 45 },
+      effects: { housing: true },
+      requires: []
+    },
+    house_4: {
+      label: "Casa oest",
+      description: "Habitatges escalables que limiten quanta poblacio pot viure a la ciutat.",
+      maxLevel: 10,
+      baseTime: 58,
+      workers: 4,
+      cost: { wood: 115, stone: 55, fiber: 42, food: 50 },
+      effects: { housing: true },
+      requires: []
+    },
+    school: {
+      label: "Escola",
+      description: "Augmenta el coneixement i prepara els nens per convertir-se en adults productius.",
+      maxLevel: 10,
+      baseTime: 64,
+      workers: 4,
+      cost: { wood: 130, stone: 80, fiber: 50, knowledge: 25 },
+      effects: { knowledgeRate: 0.08, education: 0.05 },
+      requires: ["rituals"]
     }
   },
   technologies: {
@@ -195,11 +245,11 @@ window.CIVITAS_DATA = {
     { id: "mainSquare", label: "Placa Major" },
     { id: "hotel", label: "Hotel", buildingId: "hotel", stat: "visitors" },
     { id: "hospital", label: "Hospital", buildingId: "hospital", stat: "health" },
-    { id: "empty-1", label: "" },
-    { id: "empty-2", label: "" },
-    { id: "empty-3", label: "" },
-    { id: "empty-4", label: "" },
-    { id: "empty-5", label: "" },
+    { id: "house-1", label: "Casa nord", buildingId: "house_1", stat: "housing" },
+    { id: "house-2", label: "Casa est", buildingId: "house_2", stat: "housing" },
+    { id: "house-3", label: "Casa sud", buildingId: "house_3", stat: "housing" },
+    { id: "house-4", label: "Casa oest", buildingId: "house_4", stat: "housing" },
+    { id: "school", label: "Escola", buildingId: "school", stat: "education" },
     { id: "empty-6", label: "" },
     { id: "empty-7", label: "" },
     { id: "empty-8", label: "" }
@@ -220,7 +270,15 @@ window.CIVITAS_DATA = {
     population: {
       baseWorkersPerPerson: 1,
       lowFoodThreshold: 0.18,
-      starvationSicknessMultiplier: 2.4
+      starvationSicknessMultiplier: 2.4,
+      baseHousing: 10,
+      ageDaysPerYear: 24,
+      adultStartAge: 15,
+      elderStartAge: 60,
+      yearlyBirthRate: 0.045,
+      yearlyDeathRate: 0.018,
+      yearlyMigrationRate: 0.08,
+      houseCapacityByLevel: [0, 8, 14, 22, 32, 44, 58, 72, 84, 94, 100]
     },
     hotel: {
       visitorDrift: 0.015,

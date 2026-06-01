@@ -11,6 +11,10 @@ Joc de navegador en PHP, HTML, CSS i JavaScript inspirat en gestio de ciutat, pr
 - Cua paral.lela per lloc: accions diferents avancen alhora, pero les del mateix objectiu esperen en ordre.
 - Recerca tecnologica inicial de la prehistoria.
 - Fitxes especials de ciutat: magatzem, graner, hotel, hospital i espais reservats.
+- Quatre caselles d'habitatges independents, amb 10 nivells i 100 places maximes per casa.
+- Escola com a fitxa especial preparada per educacio i generacio de coneixement.
+- Calendari visible a la barra superior i velocitat 100x per desenvolupar mes rapid.
+- Poblacio dividida en nens, adults i majors; nomes els adults sans poden treballar.
 - Hotel amb atraccio, visitants i intercanvi calculat segons ciutat, recursos, poblacio i moral.
 - Malalties que redueixen treballadors disponibles, mitigades per l'hospital.
 - Esdeveniments naturals que alteren produccio o seguretat.
