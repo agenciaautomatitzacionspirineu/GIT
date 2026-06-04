@@ -104,9 +104,9 @@ button:disabled {
 }
 
 .resource-pill {
-  min-height: 48px;
+  min-height: 58px;
   display: grid;
-  grid-template-columns: 24px 1fr auto;
+  grid-template-columns: 24px minmax(0, 1fr) auto;
   gap: 4px 8px;
   align-items: center;
   padding: 7px 9px;
@@ -115,9 +115,47 @@ button:disabled {
   background: #fffdf8;
 }
 
-.resource-pill small {
-  grid-column: 2 / 4;
+.resource-pill > strong {
+  grid-column: 3;
+  grid-row: 1;
+}
+
+.resource-flow {
+  grid-column: 2;
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.resource-flow small {
+  line-height: 1.05;
+  white-space: nowrap;
+}
+
+.resource-net {
+  grid-column: 3;
+  grid-row: 2;
+  display: grid;
+  justify-items: end;
+  gap: 2px;
   line-height: 1;
+}
+
+.resource-net small {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.resource-net strong {
+  font-size: 12px;
+}
+
+.resource-net.positive strong {
+  color: var(--accent-dark);
+}
+
+.resource-net.negative strong {
+  color: var(--danger);
 }
 
 .resource-icon {

@@ -278,6 +278,8 @@ window.CIVITAS_DATA = {
       yearlyBirthRate: 0.045,
       yearlyDeathRate: 0.018,
       yearlyMigrationRate: 0.08,
+      adultFoodRate: 0.017,
+      dependentFoodMultiplier: 0.75,
       houseCapacityByLevel: [0, 8, 14, 22, 32, 44, 58, 72, 84, 94, 100]
     },
     hotel: {

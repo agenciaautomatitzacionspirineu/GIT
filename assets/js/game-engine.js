@@ -274,15 +274,34 @@ class GameEngine {
     return rates;
   }
 
-  produce(seconds) {
-    const rates = this.productionRates();
+  foodConsumptionRate() {
+    const demographics = this.state.demographics || this.demographicsFromPopulation(this.state.population || 0);
+    const rules = this.data.configuration?.population || {};
+    const dependentFoodMultiplier = rules.dependentFoodMultiplier ?? 0.75;
+    const adultFoodRate = rules.adultFoodRate || 0.017;
+    const equivalentAdults =
+      (demographics.adults || 0) +
+      ((demographics.children || 0) + (demographics.elders || 0)) * dependentFoodMultiplier;
     const foodUseMultiplier = this.buildingEffect("foodUseMultiplier");
-    const foodConsumption = this.state.population * 0.017 * this.state.difficultyRules.consumption * (1 + foodUseMultiplier);
-    rates.food -= foodConsumption;
+    return equivalentAdults * adultFoodRate * this.state.difficultyRules.consumption * (1 + foodUseMultiplier);
+  }
+
+  resourceFlows() {
+    const production = this.productionRates();
+    const consumption = { food: this.foodConsumptionRate() };
+    const net = { ...production };
+    net.food = (net.food || 0) - consumption.food;
+
     const hotelExchange = this.state.hotel.exchange || 0;
-    rates.knowledge += hotelExchange * 0.45;
-    rates.fiber += hotelExchange * 0.25;
-    rates.food += hotelExchange * 0.12;
+    net.knowledge = (net.knowledge || 0) + hotelExchange * 0.45;
+    net.fiber = (net.fiber || 0) + hotelExchange * 0.25;
+    net.food = (net.food || 0) + hotelExchange * 0.12;
+
+    return { production, consumption, net };
+  }
+
+  produce(seconds) {
+    const rates = this.resourceFlows().net;
 
     for (const [resource, rate] of Object.entries(rates)) {
       this.addResource(resource, rate * seconds);

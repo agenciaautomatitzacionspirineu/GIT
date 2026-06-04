@@ -53,6 +53,10 @@ function fmtRate(value) {
   return `${sign}${value.toFixed(2)}/s`;
 }
 
+function fmtConsumptionRate(value) {
+  return `-${Math.abs(value).toFixed(2)}/s`;
+}
+
 function costText(cost) {
   return Object.entries(cost || {})
     .map(([key, value]) => `${window.CIVITAS_DATA.resources[key]?.label || key}: ${fmt(value)}`)
@@ -74,9 +78,36 @@ function specialTileDetails(tile, state) {
   return { title: tile.special.label, meta };
 }
 
+function resourceFlowHtml(key, flows) {
+  const net = flows.net[key] || 0;
+  const netClass = net >= 0 ? "positive" : "negative";
+  if (key === "food") {
+    return `
+      <span class="resource-flow">
+        <small>Prod. ${fmtRate(flows.production.food || 0)}</small>
+        <small>Consum ${fmtConsumptionRate(flows.consumption.food || 0)}</small>
+      </span>
+      <span class="resource-net ${netClass}">
+        <small>Resta</small>
+        <strong>${fmtRate(net)}</strong>
+      </span>
+    `;
+  }
+  return `
+    <span class="resource-flow">
+      <small>Prod. ${fmtRate(flows.production[key] || 0)}</small>
+    </span>
+    <span class="resource-net ${netClass}">
+      <small>Resta</small>
+      <strong>${fmtRate(net)}</strong>
+    </span>
+  `;
+}
+
 function render(state) {
   const era = engine.getEra();
-  const rates = engine.productionRates();
+  const flows = engine.resourceFlows();
+  const rates = flows.net;
   els.eraLabel.textContent = era.label;
   els.dateLabel.textContent = `Any ${state.calendar.year}, dia ${state.calendar.day}`;
   els.settlementName.textContent = state.name;
@@ -87,7 +118,7 @@ function render(state) {
       <span class="resource-icon ${resource.icon}"></span>
       <span>${resource.label}</span>
       <strong>${fmt(state.resources[key] || 0)}</strong>
-      <small>${fmtRate(rates[key] || 0)}</small>
+      ${resourceFlowHtml(key, flows)}
     </div>
   `).join("");
 
